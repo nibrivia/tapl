@@ -21,16 +21,25 @@ instance Show Term where
 
 smallStep :: Term -> Maybe Term
 smallStep (Application (Abstraction body) arg@(Abstraction _)) =
-  Just $ shift (-1) 0 $ sub (0, shift 1 0 arg) body
-smallStep (Application fn@(Abstraction _) arg) =
-  case smallStep arg of
-    Just argStep -> Just $ Application fn argStep
-    Nothing -> Nothing
-smallStep (Application fn arg) =
-  case smallStep fn of
-    Just fnStep -> Just $ Application fnStep arg
-    Nothing -> Nothing
+  return $ shift (-1) 0 $ sub (0, shift 1 0 arg) body
+smallStep (Application fn@(Abstraction _) arg) = do
+  argStep <- smallStep arg
+  return $ Application fn argStep
+smallStep (Application fn arg) = do
+  fnStep <- smallStep fn
+  return $ Application fnStep arg
 smallStep _ = Nothing
+
+bigStep :: Term -> Maybe Term
+bigStep term@(Abstraction _) = Just term
+bigStep (Application t1 t2) = do
+  v1 <- bigStep t1
+  v2 <- bigStep t2
+  case v1 of
+    Abstraction body ->
+        return $ shift (-1) 0 $ sub (0, shift 1 0 v2) body
+    _ -> Nothing
+bigStep _ = Nothing
 
 isNormal :: Term -> Bool
 isNormal (Abstraction _) = True
@@ -68,7 +77,7 @@ printSteps term =
     then -- \|| nextTerm == term
     do
       putStrLn $ "= " ++ show term
-    else case smallStep term of
+    else case bigStep term of
       Just nextTerm ->
         if nextTerm == term
           then do putStrLn $ "= " ++ show term ++ " ...repeating"
